@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; font-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>Penandatangan pesan make.fun</title>
+  <style>
+    :root { color-scheme: light; --ink:#14231d; --muted:#52645c; --line:#d8e2dc; --accent:#146c43; --soft:#eef7f1; --warn:#8a4d00; --warnbg:#fff4df; --bad:#a32323; --badbg:#fff0f0; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#f5f8f6; color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    main { width:min(100% - 28px,720px); margin:28px auto; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px; box-shadow:0 8px 28px rgba(16,40,28,.06); }
+    h1 { margin:0 0 8px; font-size:1.45rem; line-height:1.2; }
+    h2 { margin:24px 0 8px; font-size:1.05rem; }
+    p { margin:8px 0 14px; }
+    .muted { color:var(--muted); }
+    .notice { border-radius:10px; padding:12px 14px; margin:14px 0; background:var(--soft); border:1px solid #cce4d4; }
+    .caution { background:var(--warnbg); border-color:#f0d5a8; }
+    .danger { color:var(--bad); background:var(--badbg); border:1px solid #efc4c4; }
+    label { display:block; font-weight:650; margin:16px 0 7px; }
+    textarea { width:100%; min-height:170px; resize:vertical; border:1px solid #9baea3; border-radius:10px; padding:12px; color:var(--ink); background:#fff; font:13px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    button { border:0; border-radius:9px; padding:11px 15px; margin:10px 8px 0 0; font:650 15px system-ui,sans-serif; background:var(--accent); color:white; cursor:pointer; }
+    button.secondary { background:#e9efeb; color:var(--ink); border:1px solid var(--line); }
+    button:disabled { opacity:.48; cursor:not-allowed; }
+    .target { display:block; overflow-wrap:anywhere; padding:10px 12px; background:#f2f5f3; border-radius:8px; font:13px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .status { min-height:28px; margin-top:10px; font-weight:650; }
+    .preview { white-space:pre-wrap; overflow-wrap:anywhere; padding:12px; background:#f7f9f8; border:1px solid var(--line); border-radius:9px; font:12px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .signature { min-height:100px; }
+    .small { font-size:.9rem; }
+    footer { margin:14px 4px 0; color:var(--muted); font-size:.85rem; }
+    @media (max-width:520px) { main { margin:12px auto; } .card { padding:17px; } h1 { font-size:1.25rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="card">
+    <h1>Penandatangan pesan konfirmasi make.fun</h1>
+    <p class="muted">Halaman statis ini membantu Phantom menandatangani satu pesan konfirmasi untuk payout pin. Halaman ini bukan situs make.fun.</p>
+    <div class="notice caution"><strong>Periksa sebelum menandatangani.</strong> Pastikan pesan berasal dari make.fun, menyebut wallet dan bounty yang dituju, dan sama persis dengan pesan yang dikirim Cue. Jika ada yang berbeda, jangan tanda tangani.</div>
+
+    <h2>Wallet payout di pesan</h2>
+    <code id="expectedWallet" class="target">Belum diperiksa — tempel pesan terlebih dahulu.</code>
+    <p class="small muted">Halaman hanya mengaktifkan tanda tangan jika wallet pada pesan sama persis dengan wallet Phantom yang terhubung.</p>
+
+    <label for="message">Tempel pesan konfirmasi di sini</label>
+    <textarea id="message" spellcheck="false" autocomplete="off" autocapitalize="off" placeholder="Tempel satu baris pesan make.fun account change v1 di sini"></textarea>
+    <button id="useMessage" type="button">Pakai Pesan Ini</button>
+    <button id="clearMessage" class="secondary" type="button">Kosongkan</button>
+    <div id="messageStatus" class="status" aria-live="polite"></div>
+
+    <section id="messagePreview" hidden>
+      <h2>Pesan yang akan ditandatangani</h2>
+      <p id="messageFacts" class="small"></p>
+      <pre id="preview" class="preview"></pre>
+    </section>
+
+    <h2>Hubungkan wallet</h2>
+    <p class="small muted">Buka halaman ini di browser dalam aplikasi Phantom, atau di browser desktop dengan ekstensi Phantom.</p>
+    <button id="connect" type="button" disabled>Hubungkan Phantom</button>
+    <div id="walletStatus" class="status" aria-live="polite">Belum terhubung.</div>
+
+    <h2>Tanda tangani</h2>
+    <div class="notice"><strong>Ini hanya tanda tangan pesan, bukan transaksi.</strong> Tidak ada SOL/token yang dipindahkan, tidak ada transaksi on-chain, dan halaman ini tidak pernah meminta seed phrase atau private key.</div>
+    <button id="sign" type="button" disabled>Tanda tangani pesan</button>
+    <div id="signStatus" class="status" aria-live="polite"></div>
+    <label for="signature">Signature base58</label>
+    <textarea id="signature" class="signature" readonly placeholder="Signature akan tampil di sini setelah Anda menyetujuinya di Phantom."></textarea>
+    <button id="copy" class="secondary" type="button" disabled>Salin signature</button>
+    <div id="copyStatus" class="status" aria-live="polite"></div>
+  </section>
+  <footer>Privasi: pesan dan signature tidak dikirim ke server oleh halaman ini. Kode halaman tidak memuat library atau skrip pihak ketiga. Signature yang Anda setujui hanya tampil di perangkat Anda untuk disalin.</footer>
+</main>
+<script>
+(() => {
+  'use strict';
+  const EXPECTED_AGENT = 'CwgamT11LCvBpUG4neAmMKP4yJuoswPoUyATzmgqYSBz';
+  const EXPECTED_COMPETITION = 'github-core-clone-01';
+  const EXPECTED_CHAIN = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+  const PREFIX = 'make.fun account change v1;';
+  const MAX_CHALLENGE_MS = 5 * 60 * 1000 + 2000;
+  const $ = (id) => document.getElementById(id);
+  const messageBox = $('message');
+  const signatureBox = $('signature');
+  let acceptedMessage = '';
+  let acceptedWallet = '';
+  let provider = null;
+  let connectedAddress = '';
+  let signing = false;
+  function field(text, name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = text.match(new RegExp('(?:^|; )' + escaped + ': ([^;]+)(?=;|$)'));
+    return match ? match[1] : null;
+  }
+
+  function validate(text) {
+    if (!text || text !== text.trim() || /[\r\n]/.test(text)) return { ok:false, why:'Tempel pesan satu baris utuh, tanpa mengubah atau menambah karakter.' };
+    if (!text.startsWith(PREFIX + ' ')) return { ok:false, why:'Pesan harus diawali “make.fun account change v1;”.' };
+    if (field(text, 'Domain') !== 'make.fun') return { ok:false, why:'Domain pada pesan bukan make.fun.' };
+    const wallet = field(text, 'Wallet');
+    if (!wallet || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet)) return { ok:false, why:'Wallet pada pesan tidak tampak seperti alamat Solana yang valid.' };
+    if (field(text, 'Chain ID') !== EXPECTED_CHAIN) return { ok:false, why:'Chain ID pada pesan bukan Solana mainnet yang diharapkan.' };
+    const change = field(text, 'Change');
+    const expectedStart = "pin this account's rewards to the wallet " + wallet + ' (agent ' + EXPECTED_AGENT + ', competition ' + EXPECTED_COMPETITION + ', until ';
+    if (!change || !change.startsWith(expectedStart) || !change.endsWith(')')) return { ok:false, why:'Perubahan pada pesan tidak cocok dengan payout pin untuk bounty yang dimaksud.' };
+    const issuedRaw = field(text, 'Issued At');
+    const expiresRaw = field(text, 'Expiration Time');
+    const issued = issuedRaw ? Date.parse(issuedRaw) : NaN;
+    const expires = expiresRaw ? Date.parse(expiresRaw) : NaN;
+    const now = Date.now();
+    if (!Number.isFinite(issued) || !Number.isFinite(expires)) return { ok:false, why:'Waktu challenge tidak terbaca.' };
+    if (issued > now + 30000 || expires <= issued || expires - issued > MAX_CHALLENGE_MS) return { ok:false, why:'Waktu challenge tidak valid.' };
+    if (expires <= now) return { ok:false, why:'Challenge sudah kedaluwarsa. Minta challenge baru; jangan tanda tangani.' };
+    const account = field(text,'Account');
+    if (!account || !/^@[A-Za-z0-9_]{1,39}$/.test(account)) return { ok:false, why:'Handle akun pada pesan tidak terbaca.' };
+    return { ok:true, expires, account, wallet };
+  }
+
+  function refresh() {
+    const current = validate(acceptedMessage);
+    $('connect').disabled = !current.ok || signing;
+    $('sign').disabled = !current.ok || !connectedAddress || connectedAddress !== current.wallet || signing;
+    if (acceptedMessage && !current.ok) {
+      $('messageStatus').textContent = current.why;
+      $('messageStatus').className = 'status danger';
+    }
+  }
+
+  $('useMessage').addEventListener('click', () => {
+    acceptedMessage = messageBox.value;
+    signatureBox.value = '';
+    $('copy').disabled = true;
+    $('signStatus').textContent = '';
+    const result = validate(acceptedMessage);
+    $('messagePreview').hidden = !result.ok;
+    if (!result.ok) {
+      acceptedWallet = '';
+      $('messageStatus').textContent = result.why;
+      $('messageStatus').className = 'status danger';
+      refresh();
+      return;
+    }
+    acceptedWallet = result.wallet;
+    $('expectedWallet').textContent = result.wallet;
+    $('preview').textContent = acceptedMessage;
+    $('messageFacts').textContent = 'Akun: ' + result.account + ' · Wallet tujuan: ' + result.wallet + ' · Bounty: ' + EXPECTED_COMPETITION + ' · Kedaluwarsa: ' + new Date(result.expires).toLocaleString('id-ID');
+    $('messageStatus').textContent = 'Pesan cocok. Periksa teks di bawah sebelum menandatangani.';
+    $('messageStatus').className = 'status';
+    refresh();
+  });
+
+  $('clearMessage').addEventListener('click', () => {
+    messageBox.value = '';
+    acceptedMessage = '';
+    acceptedWallet = '';
+    $('expectedWallet').textContent = 'Belum diperiksa — tempel pesan terlebih dahulu.';
+    $('messagePreview').hidden = true;
+    $('messageStatus').textContent = '';
+    signatureBox.value = '';
+    $('signStatus').textContent = '';
+    $('copyStatus').textContent = '';
+    $('copy').disabled = true;
+    refresh();
+  });
+
+  $('connect').addEventListener('click', async () => {
+    $('walletStatus').textContent = 'Membuka permintaan koneksi Phantom…';
+    $('walletStatus').className = 'status';
+    try {
+      const candidate = window.phantom?.solana || window.solana || null;
+      if (!candidate || candidate.isPhantom !== true || typeof candidate.connect !== 'function') throw new Error('Phantom tidak terdeteksi. Buka link ini di browser dalam aplikasi Phantom atau browser desktop dengan ekstensi Phantom.');
+      provider = candidate;
+      const result = await provider.connect();
+      connectedAddress = (result?.publicKey || provider.publicKey || '').toString();
+      if (connectedAddress !== acceptedWallet) {
+        $('walletStatus').textContent = 'Wallet terhubung berbeda dari alamat tujuan. Jangan tanda tangani.';
+        $('walletStatus').className = 'status danger';
+        connectedAddress = '';
+        refresh();
+        return;
+      }
+      $('walletStatus').textContent = 'Wallet Phantom cocok: ' + connectedAddress;
+      $('walletStatus').className = 'status';
+    } catch (error) {
+      connectedAddress = '';
+      $('walletStatus').textContent = error?.message || 'Koneksi Phantom dibatalkan atau gagal.';
+      $('walletStatus').className = 'status danger';
+    }
+    refresh();
+  });
+
+  function base58(bytes) {
+    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let value = 0n;
+    for (const byte of bytes) value = (value << 8n) + BigInt(byte);
+    let encoded = '';
+    while (value > 0n) {
+      const remainder = Number(value % 58n);
+      value /= 58n;
+      encoded = alphabet[remainder] + encoded;
+    }
+    for (const byte of bytes) {
+      if (byte === 0) encoded = '1' + encoded;
+      else break;
+    }
+    return encoded || '1';
+  }
+
+  $('sign').addEventListener('click', async () => {
+    const check = validate(acceptedMessage);
+    if (!check.ok || !provider || connectedAddress !== check.wallet || typeof provider.signMessage !== 'function') {
+      $('signStatus').textContent = check.ok ? 'Hubungkan wallet Phantom yang benar terlebih dahulu.' : check.why;
+      $('signStatus').className = 'status danger';
+      refresh();
+      return;
+    }
+    signing = true;
+    refresh();
+    $('signStatus').textContent = 'Periksa pesan di Phantom. Setujui hanya jika teksnya sama persis.';
+    $('signStatus').className = 'status';
+    try {
+      const signed = await provider.signMessage(new TextEncoder().encode(acceptedMessage), 'utf8');
+      const after = validate(acceptedMessage);
+      const signatureBytes = signed?.signature || signed;
+      if (!after.ok) throw new Error('Challenge kedaluwarsa saat menunggu konfirmasi. Minta challenge baru; signature tidak dipakai.');
+      if (!signatureBytes || signatureBytes.length !== 64) throw new Error('Phantom mengembalikan signature dengan format yang tidak dikenali.');
+      const sig = base58(signatureBytes);
+      signatureBox.value = sig;
+      $('copy').disabled = false;
+      $('signStatus').textContent = 'Signature siap. Salin dan kirim kembali lewat chat untuk mengaktifkan payout pin.';
+      $('signStatus').className = 'status';
+    } catch (error) {
+      $('signStatus').textContent = error?.message || 'Tanda tangan dibatalkan atau gagal.';
+      $('signStatus').className = 'status danger';
+    } finally {
+      signing = false;
+      refresh();
+    }
+  });
+
+  $('copy').addEventListener('click', async () => {
+    if (!signatureBox.value) return;
+    try {
+      await navigator.clipboard.writeText(signatureBox.value);
+      $('copyStatus').textContent = 'Signature disalin.';
+    } catch (_) {
+      signatureBox.focus();
+      signatureBox.select();
+      $('copyStatus').textContent = 'Pilih signature lalu salin secara manual.';
+    }
+  });
+
+  window.setInterval(refresh, 5000);
+  refresh();
+})();
+</script>
+</body>
+</html>
