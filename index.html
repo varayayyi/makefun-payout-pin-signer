@@ -75,9 +75,11 @@
 <script>
 (() => {
   'use strict';
+  const EXPECTED_OWNER_WALLET_SHA256 = '2ef5f70895be16a58d8f91b15b6598b7d8f09c7cc28fce2329e1b15052e42158';
   const EXPECTED_AGENT = 'CwgamT11LCvBpUG4neAmMKP4yJuoswPoUyATzmgqYSBz';
   const EXPECTED_COMPETITION = 'github-core-clone-01';
   const EXPECTED_CHAIN = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+  const EXPECTED_DELEGATION_UNTIL = '2027-02-12T13:59:29.538Z';
   const PREFIX = 'make.fun account change v1;';
   const MAX_CHALLENGE_MS = 5 * 60 * 1000 + 2000;
   const $ = (id) => document.getElementById(id);
@@ -85,6 +87,7 @@
   const signatureBox = $('signature');
   let acceptedMessage = '';
   let acceptedWallet = '';
+  let ownerWalletVerified = false;
   let provider = null;
   let connectedAddress = '';
   let signing = false;
@@ -94,16 +97,27 @@
     return match ? match[1] : null;
   }
 
+  async function walletMatchesExpected(wallet) {
+    if (!window.crypto?.subtle) throw new Error('Browser ini tidak mendukung pemeriksaan wallet. Gunakan browser dalam aplikasi Phantom versi terbaru.');
+    const bytes = new Uint8Array(await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(wallet)));
+    const digest = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return digest === EXPECTED_OWNER_WALLET_SHA256;
+  }
+
   function validate(text) {
     if (!text || text !== text.trim() || /[\r\n]/.test(text)) return { ok:false, why:'Tempel pesan satu baris utuh, tanpa mengubah atau menambah karakter.' };
     if (!text.startsWith(PREFIX + ' ')) return { ok:false, why:'Pesan harus diawali “make.fun account change v1;”.' };
+    const labels = ['Change', 'Domain', 'Account', 'Wallet', 'Chain ID', 'Nonce', 'Issued At', 'Expiration Time'];
+    const parts = text.split('; ');
+    if (parts.length !== labels.length + 1 || parts[0] !== 'make.fun account change v1' || parts.some((part) => part.includes(';') || part !== part.trim()) || labels.some((label, index) => !parts[index + 1].startsWith(label + ': '))) return { ok:false, why:'Susunan pesan tidak valid atau memiliki field ganda. Tempel pesan asli secara utuh.' };
     if (field(text, 'Domain') !== 'make.fun') return { ok:false, why:'Domain pada pesan bukan make.fun.' };
     const wallet = field(text, 'Wallet');
     if (!wallet || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(wallet)) return { ok:false, why:'Wallet pada pesan tidak tampak seperti alamat Solana yang valid.' };
     if (field(text, 'Chain ID') !== EXPECTED_CHAIN) return { ok:false, why:'Chain ID pada pesan bukan Solana mainnet yang diharapkan.' };
     const change = field(text, 'Change');
     const expectedStart = "pin this account's rewards to the wallet " + wallet + ' (agent ' + EXPECTED_AGENT + ', competition ' + EXPECTED_COMPETITION + ', until ';
-    if (!change || !change.startsWith(expectedStart) || !change.endsWith(')')) return { ok:false, why:'Perubahan pada pesan tidak cocok dengan payout pin untuk bounty yang dimaksud.' };
+    if (change !== expectedStart + EXPECTED_DELEGATION_UNTIL + ')') return { ok:false, why:'Perubahan pada pesan tidak cocok dengan payout pin untuk bounty dan masa delegasi yang dimaksud.' };
+    if (!/^[a-f0-9]{32}$/.test(field(text, 'Nonce') || '')) return { ok:false, why:'Nonce challenge tidak valid.' };
     const issuedRaw = field(text, 'Issued At');
     const expiresRaw = field(text, 'Expiration Time');
     const issued = issuedRaw ? Date.parse(issuedRaw) : NaN;
@@ -119,29 +133,55 @@
 
   function refresh() {
     const current = validate(acceptedMessage);
-    $('connect').disabled = !current.ok || signing;
-    $('sign').disabled = !current.ok || !connectedAddress || connectedAddress !== current.wallet || signing;
+    const walletVerified = current.ok && ownerWalletVerified && acceptedWallet === current.wallet;
+    $('connect').disabled = !walletVerified || signing;
+    $('sign').disabled = !walletVerified || !connectedAddress || connectedAddress !== current.wallet || signing;
+    $('useMessage').disabled = signing;
+    $('clearMessage').disabled = signing;
+    messageBox.disabled = signing;
     if (acceptedMessage && !current.ok) {
       $('messageStatus').textContent = current.why;
       $('messageStatus').className = 'status danger';
+      signatureBox.value = '';
+      $('copy').disabled = true;
     }
   }
 
-  $('useMessage').addEventListener('click', () => {
+  $('useMessage').addEventListener('click', async () => {
     acceptedMessage = messageBox.value;
+    const candidateMessage = acceptedMessage;
+    acceptedWallet = '';
+    ownerWalletVerified = false;
+    $('expectedWallet').textContent = 'Belum diperiksa — tempel pesan terlebih dahulu.';
     signatureBox.value = '';
     $('copy').disabled = true;
     $('signStatus').textContent = '';
     const result = validate(acceptedMessage);
-    $('messagePreview').hidden = !result.ok;
+    $('messagePreview').hidden = true;
     if (!result.ok) {
-      acceptedWallet = '';
       $('messageStatus').textContent = result.why;
       $('messageStatus').className = 'status danger';
       refresh();
       return;
     }
+    $('messageStatus').textContent = 'Memeriksa wallet tujuan…';
+    $('messageStatus').className = 'status';
+    refresh();
+    try {
+      const matches = await walletMatchesExpected(result.wallet);
+      if (acceptedMessage !== candidateMessage) return;
+      if (!matches) throw new Error('Wallet pada pesan berbeda dari wallet payout yang diminta. Jangan tanda tangani.');
+      const fresh = validate(candidateMessage);
+      if (!fresh.ok) throw new Error(fresh.why);
+    } catch (error) {
+      $('messageStatus').textContent = error?.message || 'Pemeriksaan wallet gagal.';
+      $('messageStatus').className = 'status danger';
+      refresh();
+      return;
+    }
     acceptedWallet = result.wallet;
+    ownerWalletVerified = true;
+    $('messagePreview').hidden = false;
     $('expectedWallet').textContent = result.wallet;
     $('preview').textContent = acceptedMessage;
     $('messageFacts').textContent = 'Akun: ' + result.account + ' · Wallet tujuan: ' + result.wallet + ' · Bounty: ' + EXPECTED_COMPETITION + ' · Kedaluwarsa: ' + new Date(result.expires).toLocaleString('id-ID');
@@ -154,6 +194,7 @@
     messageBox.value = '';
     acceptedMessage = '';
     acceptedWallet = '';
+    ownerWalletVerified = false;
     $('expectedWallet').textContent = 'Belum diperiksa — tempel pesan terlebih dahulu.';
     $('messagePreview').hidden = true;
     $('messageStatus').textContent = '';
@@ -208,8 +249,9 @@
   }
 
   $('sign').addEventListener('click', async () => {
-    const check = validate(acceptedMessage);
-    if (!check.ok || !provider || connectedAddress !== check.wallet || typeof provider.signMessage !== 'function') {
+    const textToSign = acceptedMessage;
+    const check = validate(textToSign);
+    if (!check.ok || !ownerWalletVerified || acceptedWallet !== check.wallet || !provider || connectedAddress !== check.wallet || typeof provider.signMessage !== 'function') {
       $('signStatus').textContent = check.ok ? 'Hubungkan wallet Phantom yang benar terlebih dahulu.' : check.why;
       $('signStatus').className = 'status danger';
       refresh();
@@ -220,10 +262,15 @@
     $('signStatus').textContent = 'Periksa pesan di Phantom. Setujui hanya jika teksnya sama persis.';
     $('signStatus').className = 'status';
     try {
-      const signed = await provider.signMessage(new TextEncoder().encode(acceptedMessage), 'utf8');
-      const after = validate(acceptedMessage);
+      if (!await walletMatchesExpected(check.wallet)) throw new Error('Wallet tujuan tidak cocok. Tanda tangan diblokir.');
+      const before = validate(textToSign);
+      if (!before.ok) throw new Error(before.why);
+      if ((provider.publicKey || '').toString() !== check.wallet) throw new Error('Akun Phantom berubah. Hubungkan kembali wallet yang benar.');
+      const signed = await provider.signMessage(new TextEncoder().encode(textToSign), 'utf8');
+      const after = validate(textToSign);
       const signatureBytes = signed?.signature || signed;
       if (!after.ok) throw new Error('Challenge kedaluwarsa saat menunggu konfirmasi. Minta challenge baru; signature tidak dipakai.');
+      if (signed?.publicKey && signed.publicKey.toString() !== check.wallet) throw new Error('Signature berasal dari wallet lain. Tanda tangan tidak dipakai.');
       if (!signatureBytes || signatureBytes.length !== 64) throw new Error('Phantom mengembalikan signature dengan format yang tidak dikenali.');
       const sig = base58(signatureBytes);
       signatureBox.value = sig;
